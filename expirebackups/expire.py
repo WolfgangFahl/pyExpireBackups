@@ -4,11 +4,13 @@ Created on 2022-04-01
 @author: wf
 '''
 from expirebackups.version import Version
+import datetime
 import os
 import sys
 import traceback
 from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
+
 
 __version__ = Version.version
 __date__ = Version.date
@@ -22,6 +24,31 @@ defaultYears=4
 class BackupFile():
     '''
     '''
+    def __init__(self,filePath:str):
+        self.filePath=filePath
+        
+    def getModified(self):
+        stats=os.stat(self.filePath)
+        modified = datetime.datetime.fromtimestamp(stats.st_mtime, tz=datetime.timezone.utc)
+        return modified
+    
+    def getAgeInDays(self)->float:
+        '''
+        get the age of this backup file in days
+        
+        Returns:
+            float: the number of days this file is old
+        '''
+        modified=self.getModified()
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        age=now - modified
+        return age.days
+    
+    def getIsoDateOfModification(self):
+        modified=self.getModified()
+        isoDate=modified.strftime('%Y-%m-%d_%H:%M')
+        return isoDate
+        
 
 class Expiration():
     '''
@@ -38,6 +65,7 @@ class Expiration():
         self.weeks=weeks
         self.months=months
         self.yearx=years 
+        
 
 class ExpireBackups(object):
     '''

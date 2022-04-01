@@ -5,9 +5,12 @@ Created on 01.04.2022
 '''
 import unittest
 from contextlib import redirect_stderr
+from tempfile import NamedTemporaryFile
+import datetime
 import io
+import os
 import re
-from expirebackups.expire import ExpireBackups, Expiration
+from expirebackups.expire import ExpireBackups, BackupFile,Expiration
 import expirebackups.expire
 
 class TestExpireBackups(unittest.TestCase):
@@ -23,6 +26,21 @@ class TestExpireBackups(unittest.TestCase):
     def tearDown(self):
         pass
     
+    def createTestFile(self,ext:str,ageInDays:int):
+        '''
+        create a test File with the given extension and the given age in Days
+        '''
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        dayDelta = datetime.timedelta(days = ageInDays)
+        wantedTime=now-dayDelta
+        timestamp=datetime.datetime.timestamp(wantedTime)
+        testFile=NamedTemporaryFile(prefix=f"{ageInDays}daysOld",suffix=ext,delete=False)
+        with open(testFile.name, 'a'):
+            times=(timestamp,timestamp) # access time and modification time
+            os.utime(testFile.name, times)
+        return testFile.name
+        
+    
     def doTestPattern(self,days:int,weeks:int,months:int,years:int,failMsg:str, expectedMatch:str):
         '''
         test the given pattern
@@ -32,6 +50,18 @@ class TestExpireBackups(unittest.TestCase):
             self.fail(failMsg)
         except Exception as ex:
             self.assertTrue(re.match(expectedMatch,str(ex)))
+            
+    def testCreateTestFiles(self):
+        '''
+        '''
+        ext=".tst"
+        testFile=self.createTestFile(ext, 10)
+        if self.debug:
+            print (testFile)
+        for ageInDays in range(1,101):
+            testFile=self.createTestFile(ext, ageInDays)
+            backupFile=BackupFile(testFile)
+            print (f"{ageInDays:3d}:{backupFile.getAgeInDays():3d}:{testFile}")
     
     def testPatterns(self):
         '''
