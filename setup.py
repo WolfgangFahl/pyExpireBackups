@@ -12,10 +12,10 @@ try:
 except:
     print('Curr dir:', os.getcwd())
     long_description = open('../../README.md').read()
-    here = pathlib.Path(__file__).parent.resolve()
-    requirements = (here / 'requirements.txt').read_text(encoding='utf-8').split("\n")
+here = pathlib.Path(__file__).parent.resolve()
+requirements = (here / 'requirements.txt').read_text(encoding='utf-8').split("\n")
 
-    setup(name=Version.name,
+setup(name=Version.name,
       version=Version.version,
       description=Version.description,
       long_description=long_description,
