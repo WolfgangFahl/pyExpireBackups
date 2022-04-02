@@ -171,7 +171,8 @@ class ExpireBackups(object):
         dayDelta = datetime.timedelta(days = ageInDays)
         wantedTime=now-dayDelta
         timestamp=datetime.datetime.timestamp(wantedTime)
-        testFile=NamedTemporaryFile(prefix=f"{baseName}-{ageInDays}daysOld",suffix=ext,delete=False)
+        prefix="" if baseName is None else f"{baseName}-"
+        testFile=NamedTemporaryFile(prefix=f"{prefix}{ageInDays}daysOld",suffix=ext,delete=False)
         with open(testFile.name, 'a'):
             times=(timestamp,timestamp) # access time and modification time
             os.utime(testFile.name, times)
