@@ -273,11 +273,14 @@ class ExpireBackups(object):
         backupFiles=self.getBackupFiles()
         filesByAge=self.expiration.applyRules(backupFiles)
         total=0
+        if show:
+            deletehint= "by deletion" if withDelete else "dry run" 
+            print(f"expiring {len(filesByAge)} files {deletehint}")
         for i,backupFile in enumerate(filesByAge):
             total+=backupFile.size
             totalString=BackupFile.getSizeString(total)
             marker="❌" if backupFile.expire else "✅"  
-            line=f"#{i:4d}{marker}:{backupFile.ageInDays:6.1f} days({backupFile.sizeString}/{totalString})→{backupFile.filePath}"
+            line=f"#{i+1:4d}{marker}:{backupFile.ageInDays:6.1f} days({backupFile.sizeString}/{totalString})→{backupFile.filePath}"
             if show:
                 print(line)
             if withDelete and backupFile.expire:

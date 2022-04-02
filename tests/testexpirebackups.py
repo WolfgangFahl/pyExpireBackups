@@ -60,7 +60,7 @@ class TestExpireBackups(unittest.TestCase):
         path,_backupFiles=ExpireBackups.createTestFiles(numberOfFiles,ext=ext)
         eb=ExpireBackups(rootPath=path,ext=ext)
         show=True
-        eb.doexpire(show=show)                
+        eb.doexpire(withDelete=True,show=show)                
     
     def testPatterns(self):
         '''
