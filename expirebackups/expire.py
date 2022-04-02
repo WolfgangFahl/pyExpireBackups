@@ -20,10 +20,12 @@ __version__ = Version.version
 __date__ = Version.date
 __updated__ = Version.updated
 DEBUG = 0
+
 defaultDays=7
 defaultWeeks=6
 defaultMonths=8
 defaultYears=4
+defaultMinFileSize=1
 
 class BackupFile():
     '''
@@ -38,15 +40,53 @@ class BackupFile():
         '''
         self.filePath=filePath
         self.modified,self.size=self.getStats()
+        self.sizeValue,self.unit,self.factor=BackupFile.getSize(self.size)
+        self.sizeString=BackupFile.getSizeString(self.size)
         self.ageInDays=self.getAgeInDays()
         self.isoDate=self.getIsoDateOfModification()
+        self.expire=False
         
     def __str__(self):
         '''
         return a string representation of me
         '''
-        text=f"{self.ageInDays:6.1f} days({self.size/1024/1024:6.0f} MB):{self.filePath}"
-        return text      
+        text=f"{self.ageInDays:6.1f} days({self.sizeString}):{self.filePath}"
+        return text  
+    
+    @classmethod
+    def getSizeString(cls,size:float)->str:
+        '''
+        get my Size in human readable terms as a s
+        
+        Args:
+            size(float): Size in Bytes
+        
+        Returns:
+            str: a String representation
+        '''
+        size,unit,_factor=cls.getSize(size)
+        text=f"{size:5.0f} {unit}"  
+        return text
+
+    @classmethod
+    def getSize(cls,size:float)->Tuple[float,str,float]:
+        '''
+        get my Size in human readable terms
+        
+        Args:
+            size(float): Size in Bytes
+            
+        Returns:
+            Tuple(float,str,float): the size, unit and factor of the unit e.g. 3.2, "KB", 1024
+        '''
+        units=[" B","KB","MB","GB","TB"]
+        unitIndex=0
+        factor=1
+        while size>1024:
+            factor=factor*1024
+            size=size/1024
+            unitIndex+=1
+        return size,units[unitIndex],factor
         
     def getStats(self)->Tuple[datetime.datetime,float]:
         '''
@@ -105,8 +145,7 @@ class Expiration():
     '''
     Expiration pattern
     '''
-    
-    def __init__(self,days:int=defaultDays,weeks:int=defaultWeeks,months:int=defaultMonths,years:int=defaultYears):
+    def __init__(self,days:int=defaultDays,weeks:int=defaultWeeks,months:int=defaultMonths,years:int=defaultYears,minFileSize:int=defaultMinFileSize):
         '''
         constructor
         '''
@@ -118,6 +157,7 @@ class Expiration():
             # the year is in fact 52 weeks or 13 of the 4 week months
             "years": ExpirationRule("years",364,years)
         }      
+        self.minFileSize=minFileSize
         
     def applyRules(self,backupFiles:list):
         '''
@@ -130,6 +170,9 @@ class Expiration():
             list: the sorted and marked list of backupFiles
         '''
         filesByAge=sorted(backupFiles, key=lambda backupFile: backupFile.getAgeInDays())
+        for file in filesByAge:
+            if file.size<self.minFileSize:
+                file.expire=True
         return filesByAge    
 
 class ExpireBackups(object):
@@ -137,17 +180,19 @@ class ExpireBackups(object):
     Expiration of Backups - migrated from com.bitplan.backup java solution
     '''
 
-    def __init__(self,rootPath:str,ext:str,expiration:Expiration=None,dryRun:bool=True, debug:bool=False):
+    def __init__(self,rootPath:str,baseName:str=None,ext:str=None,expiration:Expiration=None,dryRun:bool=True, debug:bool=False):
         '''
         Constructor
         
         Args:
             rootPath(str): the base path for this backup expiration
-            ext(str): file extensions to filter for e.g. ".tgz"
+            baseName(str): the basename to filter for (if any)
+            ext(str): file extensions to filter for e.g. ".tgz" (if any)
             expiration(Expiration): the Expiration Rules to apply
             dryRun(bool): donot delete any files but only show deletion plan 
         '''
         self.rootPath=rootPath
+        self.baseName=baseName
         self.ext=ext
         # if no expiration is specified use the default one
         if expiration is None:
@@ -157,13 +202,13 @@ class ExpireBackups(object):
         self.debug=debug
         
     @classmethod    
-    def createTestFile(cls,ageInDays:float,baseName:str="",ext:str=".tst"):
+    def createTestFile(cls,ageInDays:float,baseName:str=None,ext:str=".tst"):
         '''
         create a test File with the given extension and the given age in Days
         
         Args:
             ageInDays(float): the age of the file in days
-            baseName(str): the prefix of the files (default: '')
+            baseName(str): the prefix of the files (default: None)
             ext(str): the extension to be used - default ".tst"
             
         Returns:
@@ -208,23 +253,35 @@ class ExpireBackups(object):
         backupFiles=[]
         for root, _dirs, files in os.walk(self.rootPath):
             for file in files:
-                if file.endswith(self.ext):
+                include=False
+                if self.baseName is not None:
+                    include=file.startswith(self.baseName)
+                if self.ext is not None:
+                    include=file.endswith(self.ext)    
+                if include:
                     backupFile=BackupFile(os.path.join(root, file))
                     backupFiles.append(backupFile)
         return backupFiles            
         
-    def doexpire(self):
+    def doexpire(self,withDelete:bool=False,show:bool=True):
         '''
         expire the files in the given rootPath
+        
+        withDelete(bool): if True really delete the files
+        show(bool): if True show the expiration plan
         '''
         backupFiles=self.getBackupFiles()
         filesByAge=self.expiration.applyRules(backupFiles)
         total=0
         for i,backupFile in enumerate(filesByAge):
-            mBytes=backupFile.size/1024/1024
-            total+=mBytes
-            line=f"#{i:4d}:{backupFile.ageInDays:6.1f} days({mBytes:6.0f} MB/{total:6.0f} MB)→{backupFile.filePath}"
-            print(line)
+            total+=backupFile.size
+            totalString=BackupFile.getSizeString(total)
+            marker="❌" if backupFile.expire else "✅"  
+            line=f"#{i:4d}{marker}:{backupFile.ageInDays:6.1f} days({backupFile.sizeString}/{totalString})→{backupFile.filePath}"
+            if show:
+                print(line)
+            if withDelete and backupFile.expire:
+                backupFile.delete()
         
 def main(argv=None): # IGNORE:C0111
     '''main program.'''
@@ -256,14 +313,21 @@ USAGE
         # Setup argument parser
         parser = ArgumentParser(description=program_license, formatter_class=RawDescriptionHelpFormatter)
         parser.add_argument("-d", "--debug", dest="debug", action="store_true", help="show debug info")
+        
+        # expiration schedule selection
         parser.add_argument("--days",type=int,default=defaultDays,help = "number of consecutive days to keep a daily backup (default: %(default)s)")
         parser.add_argument("--weeks",type=int,default=defaultWeeks,help = "number of consecutive weeks to keep a weekly backup (default: %(default)s)")
         parser.add_argument("--months",type=int,default=defaultMonths,help = "number of consecutive month to keep a monthly backup (default: %(default)s)")
         parser.add_argument("--years",type=int,default=defaultYears,help = "number of consecutive years to keep a yearly backup (default: %(default)s)") 
-        parser.add_argument("--ext",default=".tgz",help="the extension to filter for (default: %(default)s)")
-        parser.add_argument("--createTestFiles",type=int,default=None,help="create the given number of temporary test files (default: %(default)s)")
-        parser.add_argument("--baseName",help="the basename to filter for")  
+
+        # file filter selection arguments
+        parser.add_argument("--minFileSize",type=int,default=defaultMinFileSize,help="minimum File size in bytes to filter for (default: %(default)s)")
         parser.add_argument("--rootPath",default=".")
+        parser.add_argument("--baseName",default=None,help="the basename to filter for (default: %(default)s)")  
+        parser.add_argument("--ext",default=None,help="the extension to filter for (default: %(default)s)")
+        
+        parser.add_argument("--createTestFiles",type=int,default=None,help="create the given number of temporary test files (default: %(default)s)")
+        
         parser.add_argument("-f","--force",action="store_true")
         parser.add_argument('-V', '--version', action='version', version=program_version_message)
         
@@ -275,9 +339,9 @@ USAGE
             dryRun=True
             if args.force:
                 dryRun=False    
-            expiration=Expiration(days=args.days,months=args.months,weeks=args.weeks,years=args.years)
-            eb=ExpireBackups(rootPath=args.rootPath,ext=args.ext,expiration=expiration,dryRun=dryRun,debug=args.debug)
-            eb.doexpire()
+            expiration=Expiration(days=args.days,months=args.months,weeks=args.weeks,years=args.years,minFileSize=args.minFileSize)
+            eb=ExpireBackups(rootPath=args.rootPath,baseName=args.baseName,ext=args.ext,expiration=expiration,dryRun=dryRun,debug=args.debug)
+            eb.doexpire(args.force)
         
     except KeyboardInterrupt:
         ### handle keyboard interrupt ###

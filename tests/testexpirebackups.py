@@ -37,17 +37,17 @@ class TestExpireBackups(unittest.TestCase):
         test creating test files to be expired
         '''
         ext=".tst"
-        testFile=ExpireBackups.createTestFile(10,ext)
+        testFile=ExpireBackups.createTestFile(10,ext=ext)
         debug=self.debug
-        #debug=True
+        debug=True
         if debug:
             print (testFile)
-        path,backupFiles=ExpireBackups.createTestFiles(20,ext)
+        path,backupFiles=ExpireBackups.createTestFiles(20,ext=ext)
         if debug:
             print(path)
         for i,backupFile in enumerate(backupFiles):
             if debug:
-                print (f"{i:3d}:{backupFile.getAgeInDays():3d}:{testFile}")
+                print (f"{i+1:3d}:{backupFile.getAgeInDays():3d}:{testFile}")
             backupFile.delete()
                 
     def testExpireBackus(self):
@@ -57,10 +57,10 @@ class TestExpireBackups(unittest.TestCase):
         # ebt= expire backup test
         ext=".ebt"
         numberOfFiles=20
-        path,_backupFiles=ExpireBackups.createTestFiles(numberOfFiles,ext)
+        path,_backupFiles=ExpireBackups.createTestFiles(numberOfFiles,ext=ext)
         eb=ExpireBackups(rootPath=path,ext=ext)
-        eb.doexpire()
-                    
+        show=True
+        eb.doexpire(show=show)                
     
     def testPatterns(self):
         '''
@@ -76,7 +76,6 @@ class TestExpireBackups(unittest.TestCase):
             failMsg=f"pattern for {name} failed"
             expectedMatch=fr"^-1 {name} is invalid - {name} must be >=0$" 
             self.doTestPattern(days, weeks, months, years, failMsg, expectedMatch)
-
 
     def testArgs(self):
         '''
