@@ -5,12 +5,9 @@ Created on 01.04.2022
 '''
 import unittest
 from contextlib import redirect_stderr
-from tempfile import NamedTemporaryFile
-import datetime
 import io
-import os
 import re
-from expirebackups.expire import ExpireBackups, BackupFile,Expiration
+from expirebackups.expire import ExpireBackups, Expiration
 import expirebackups.expire
 
 class TestExpireBackups(unittest.TestCase):
@@ -22,24 +19,8 @@ class TestExpireBackups(unittest.TestCase):
         self.debug=False
         pass
 
-
     def tearDown(self):
-        pass
-    
-    def createTestFile(self,ext:str,ageInDays:int):
-        '''
-        create a test File with the given extension and the given age in Days
-        '''
-        now = datetime.datetime.now(tz=datetime.timezone.utc)
-        dayDelta = datetime.timedelta(days = ageInDays)
-        wantedTime=now-dayDelta
-        timestamp=datetime.datetime.timestamp(wantedTime)
-        testFile=NamedTemporaryFile(prefix=f"{ageInDays}daysOld",suffix=ext,delete=False)
-        with open(testFile.name, 'a'):
-            times=(timestamp,timestamp) # access time and modification time
-            os.utime(testFile.name, times)
-        return testFile.name
-        
+        pass    
     
     def doTestPattern(self,days:int,weeks:int,months:int,years:int,failMsg:str, expectedMatch:str):
         '''
@@ -53,24 +34,47 @@ class TestExpireBackups(unittest.TestCase):
             
     def testCreateTestFiles(self):
         '''
+        test creating test files to be expired
         '''
         ext=".tst"
-        testFile=self.createTestFile(ext, 10)
-        if self.debug:
+        testFile=ExpireBackups.createTestFile(10,ext)
+        debug=self.debug
+        #debug=True
+        if debug:
             print (testFile)
-        for ageInDays in range(1,101):
-            testFile=self.createTestFile(ext, ageInDays)
-            backupFile=BackupFile(testFile)
-            print (f"{ageInDays:3d}:{backupFile.getAgeInDays():3d}:{testFile}")
+        path,backupFiles=ExpireBackups.createTestFiles(20,ext)
+        if debug:
+            print(path)
+        for i,backupFile in enumerate(backupFiles):
+            if debug:
+                print (f"{i:3d}:{backupFile.getAgeInDays():3d}:{testFile}")
+            backupFile.delete()
+                
+    def testExpireBackus(self):
+        '''
+        test expiration of backups
+        '''
+        # ebt= expire backup test
+        ext=".ebt"
+        numberOfFiles=20
+        path,backupFiles=ExpireBackups.createTestFiles(numberOfFiles,ext)
+        eb=ExpireBackups(rootPath=path,ext=ext)
+        eb.doexpire()
+                    
     
     def testPatterns(self):
         '''
         test different patterns for being valid
         '''
         patterns=[
-            (0,1,1,1,"pattern with 0 days not allowed",r"^0 days is invalid - value must be >=1")
+            (-1,0,0,0,"days"),
+            (0,-1,0,0,"weeks"),
+            (0,0,-1,0,"months"),
+            (0,0,0,-1,"years")
         ]
-        for days,weeks,months,years,failMsg,expectedMatch in patterns:
+        for days,weeks,months,years,name in patterns:
+            failMsg=f"pattern for {name} failed"
+            expectedMatch=fr"^-1 {name} is invalid - {name} must be >=0$" 
             self.doTestPattern(days, weeks, months, years, failMsg, expectedMatch)
 
 
