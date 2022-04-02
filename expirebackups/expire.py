@@ -259,7 +259,7 @@ USAGE
         
         args = parser.parse_args(argv[1:])
         if args.createTestFiles:
-            path,_backupFiles=ExpireBackups.createTestFiles(args.createTestFiles,ext=args.extension)
+            path,_backupFiles=ExpireBackups.createTestFiles(args.createTestFiles,ext=args.ext)
             print(f"created {args.createTestFiles} test files in {path}")
         else:
             dryRun=True
