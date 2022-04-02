@@ -155,12 +155,13 @@ class ExpireBackups(object):
         self.debug=debug
         
     @classmethod    
-    def createTestFile(cls,ageInDays:float,ext:str=".tst"):
+    def createTestFile(cls,ageInDays:float,baseName:str="",ext:str=".tst"):
         '''
         create a test File with the given extension and the given age in Days
         
         Args:
             ageInDays(float): the age of the file in days
+            baseName(str): the prefix of the files (default: '')
             ext(str): the extension to be used - default ".tst"
             
         Returns:
@@ -170,19 +171,20 @@ class ExpireBackups(object):
         dayDelta = datetime.timedelta(days = ageInDays)
         wantedTime=now-dayDelta
         timestamp=datetime.datetime.timestamp(wantedTime)
-        testFile=NamedTemporaryFile(prefix=f"{ageInDays}daysOld",suffix=ext,delete=False)
+        testFile=NamedTemporaryFile(prefix=f"{baseName}-{ageInDays}daysOld",suffix=ext,delete=False)
         with open(testFile.name, 'a'):
             times=(timestamp,timestamp) # access time and modification time
             os.utime(testFile.name, times)
         return testFile.name
     
     @classmethod
-    def createTestFiles(cls,numberOfTestfiles:int,ext:str=".tst"):
+    def createTestFiles(cls,numberOfTestfiles:int,baseName:str="",ext:str=".tst"):
         '''
         create the given number of tests files
         
         Args:
             numberOfTestfiles(int): the number of files to create
+            baseName(str): the prefix of the files (default: '')
             ext(str): the extension of the files (default: '.tst')
             
         Returns:
@@ -191,7 +193,7 @@ class ExpireBackups(object):
         '''
         backupFiles=[]
         for ageInDays in range(1,numberOfTestfiles+1):
-            testFile=ExpireBackups.createTestFile(ageInDays,ext)
+            testFile=ExpireBackups.createTestFile(ageInDays,baseName=baseName,ext=ext)
             backupFiles.append(BackupFile(testFile))
         path=pathlib.Path(testFile).parent.resolve()
         return path,backupFiles
@@ -250,16 +252,17 @@ USAGE
         parser.add_argument("--days",type=int,default=defaultDays,help = "number of consecutive days to keep a daily backup (default: %(default)s)")
         parser.add_argument("--weeks",type=int,default=defaultWeeks,help = "number of consecutive weeks to keep a weekly backup (default: %(default)s)")
         parser.add_argument("--months",type=int,default=defaultMonths,help = "number of consecutive month to keep a monthly backup (default: %(default)s)")
-        parser.add_argument("--years",type=int,default=defaultYears,help = "number of consecutive years to keep a yearly backup (default: %(default)s)")
+        parser.add_argument("--years",type=int,default=defaultYears,help = "number of consecutive years to keep a yearly backup (default: %(default)s)") 
         parser.add_argument("--ext",default=".tgz",help="the extension to filter for (default: %(default)s)")
         parser.add_argument("--createTestFiles",type=int,default=None,help="create the given number of temporary test files (default: %(default)s)")
+        parser.add_argument("--baseName",help="the basename to filter for")  
         parser.add_argument("--rootPath",default=".")
         parser.add_argument("-f","--force",action="store_true")
         parser.add_argument('-V', '--version', action='version', version=program_version_message)
         
         args = parser.parse_args(argv[1:])
         if args.createTestFiles:
-            path,_backupFiles=ExpireBackups.createTestFiles(args.createTestFiles,ext=args.ext)
+            path,_backupFiles=ExpireBackups.createTestFiles(args.createTestFiles,baseName=args.baseName,ext=args.ext)
             print(f"created {args.createTestFiles} test files in {path}")
         else:
             dryRun=True
