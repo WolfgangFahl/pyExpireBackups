@@ -57,7 +57,7 @@ class TestExpireBackups(unittest.TestCase):
         # ebt= expire backup test
         ext=".ebt"
         numberOfFiles=20
-        path,backupFiles=ExpireBackups.createTestFiles(numberOfFiles,ext)
+        path,_backupFiles=ExpireBackups.createTestFiles(numberOfFiles,ext)
         eb=ExpireBackups(rootPath=path,ext=ext)
         eb.doexpire()
                     

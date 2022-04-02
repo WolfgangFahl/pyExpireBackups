@@ -9,6 +9,7 @@ import os
 import pathlib
 import sys
 import traceback
+from typing import Tuple
 
 from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
@@ -36,7 +37,7 @@ class BackupFile():
             filePath(str): the filePath of this backup File
         '''
         self.filePath=filePath
-        self.modified=self.getModified()
+        self.modified,self.size=self.getStats()
         self.ageInDays=self.getAgeInDays()
         self.isoDate=self.getIsoDateOfModification()
         
@@ -44,10 +45,10 @@ class BackupFile():
         '''
         return a string representation of me
         '''
-        text=f"{self.ageInDays:6.1f} days:{self.filePath}"
-        return text
+        text=f"{self.ageInDays:6.1f} days({self.size/1024/1024:6.0f} MB):{self.filePath}"
+        return text      
         
-    def getModified(self)->datetime.datetime:
+    def getStats(self)->Tuple[datetime.datetime,float]:
         '''
         get the datetime when the file was modified
         
@@ -56,7 +57,8 @@ class BackupFile():
         '''
         stats=os.stat(self.filePath)
         modified = datetime.datetime.fromtimestamp(stats.st_mtime, tz=datetime.timezone.utc)
-        return modified
+        size=stats.st_size
+        return modified,size
     
     def getAgeInDays(self)->float:
         '''
@@ -217,8 +219,12 @@ class ExpireBackups(object):
         '''
         backupFiles=self.getBackupFiles()
         filesByAge=self.expiration.applyRules(backupFiles)
-        for backupFile in filesByAge:
-            print(backupFile)
+        total=0
+        for i,backupFile in enumerate(filesByAge):
+            mBytes=backupFile.size/1024/1024
+            total+=mBytes
+            line=f"#{i:4d}:{backupFile.ageInDays:6.1f} days({mBytes:6.0f} MB/{total:6.0f} MB)→{backupFile.filePath}"
+            print(line)
         
 def main(argv=None): # IGNORE:C0111
     '''main program.'''
