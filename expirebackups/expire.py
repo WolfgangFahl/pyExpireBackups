@@ -309,14 +309,14 @@ class ExpireBackups(object):
         wantedTime=now-dayDelta
         timestamp=datetime.datetime.timestamp(wantedTime)
         prefix="" if baseName is None else f"{baseName}-"
-        testFile=NamedTemporaryFile(prefix=f"{prefix}{ageInDays}daysOld",suffix=ext,delete=False)
+        testFile=NamedTemporaryFile(prefix=f"{prefix}{ageInDays}daysOld-",suffix=ext,delete=False)
         with open(testFile.name, 'a'):
             times=(timestamp,timestamp) # access time and modification time
             os.utime(testFile.name, times)
         return testFile.name
     
     @classmethod
-    def createTestFiles(cls,numberOfTestfiles:int,baseName:str="",ext:str=".tst"):
+    def createTestFiles(cls,numberOfTestfiles:int,baseName:str="expireBackupTest",ext:str=".tst"):
         '''
         create the given number of tests files
         
@@ -436,9 +436,11 @@ USAGE
         
         args = parser.parse_args(argv[1:])
         if args.createTestFiles:
-            path,_backupFiles=ExpireBackups.createTestFiles(args.createTestFiles,baseName=args.baseName,ext=args.ext)
+            path,_backupFiles=ExpireBackups.createTestFiles(args.createTestFiles)
             print(f"created {args.createTestFiles} test files with extension '.tst' in {path}")
-            print(f"Please try out \nexpireBackups --rootPath {path} --ext .tst")
+            print(f"Please try out \nexpireBackups --rootPath {path} --baseName expireBackup --ext .tst --minFileSize 0")
+            print("then try appending the -f option to the command that will actually delete files (which are in a temporary directory")
+            print("and run the command another time with that option to see that no files are deleted any more on second run")
         else:
             dryRun=True
             if args.force:
