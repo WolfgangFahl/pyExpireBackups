@@ -437,7 +437,8 @@ USAGE
         args = parser.parse_args(argv[1:])
         if args.createTestFiles:
             path,_backupFiles=ExpireBackups.createTestFiles(args.createTestFiles,baseName=args.baseName,ext=args.ext)
-            print(f"created {args.createTestFiles} test files in {path}")
+            print(f"created {args.createTestFiles} test files with extension '.tst' in {path}")
+            print(f"Please try out \nexpireBackups --rootPath {path} --ext .tst")
         else:
             dryRun=True
             if args.force:
