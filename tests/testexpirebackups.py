@@ -56,11 +56,19 @@ class TestExpireBackups(unittest.TestCase):
         '''
         # ebt= expire backup test
         ext=".ebt"
-        numberOfFiles=20
+        numberOfFiles=expirebackups.expire.defaultDays \
+            +expirebackups.expire.defaultWeeks*7 \
+            +expirebackups.expire.defaultMonths*28
         path,_backupFiles=ExpireBackups.createTestFiles(numberOfFiles,ext=ext)
         eb=ExpireBackups(rootPath=path,ext=ext)
-        show=True
-        eb.doexpire(withDelete=True,show=show)                
+        # test files are only touched so allow minimum fileSize 0
+        eb.expiration.minFileSize=0
+        debug=self.debug
+        #debug=True
+        eb.expiration.debug=debug
+        #show=True
+        showLimit=30
+        eb.doexpire(withDelete=True,showLimit=showLimit)                
     
     def testPatterns(self):
         '''

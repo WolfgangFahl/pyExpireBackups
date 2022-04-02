@@ -50,8 +50,18 @@ class BackupFile():
         '''
         return a string representation of me
         '''
-        text=f"{self.ageInDays:6.1f} days({self.sizeString}):{self.filePath}"
+        text=f"{self.ageInDays:6.1f} days {self.getMarker()}({self.sizeString}):{self.filePath}"
         return text  
+    
+    def getMarker(self):
+        '''
+        get my marker
+        
+        Returns:
+            str: a symbol ❌ if i am to be deleted a ✅ if i am going to be kept
+        '''
+        marker="❌" if self.expire else "✅"  
+        return marker
     
     @classmethod
     def getSizeString(cls,size:float)->str:
@@ -130,49 +140,125 @@ class BackupFile():
         
 class ExpirationRule():
     '''
-    an expiration rule keeps files at a certaion
+    an expiration rule keeps files at a certain 
     '''
     def __init__(self,name,freq:float,minAmount:int):
         '''
+        constructor
+        
+        name(str): name of this rule
+        freq(float): the frequency) in days
+        minAmount(int): the minimum of files to keep around
         '''
         self.name=name
+        self.ruleName=name # will late be changed by a sideEffect in getNextRule e.g. from "week" to "weekly"
         self.freq=freq
         self.minAmount=minAmount
         if minAmount<0:
             raise Exception(f"{self.minAmount} {self.name} is invalid - {self.name} must be >=0")
+        
+    def reset(self,prevFile:BackupFile):
+        '''
+        reset my state with the given previous File
+        
+        Args:
+            prevFile: BackupFile - the file to anchor my startAge with
+        '''
+        self.kept=0
+        if prevFile is None:
+            self.startAge=0 
+        else:
+            self.startAge=prevFile.ageInDays
+        
+    def apply(self,file:BackupFile,prevFile:BackupFile,debug:bool)->bool:
+        '''
+        apply me to the given file taking the previously kept File prevFile (which might be None) into account
+        
+        Args:
+            file(BackupFile): the file to apply this rule for
+            prevFile(BackupFile): the previous file to potentially take into account
+            debug(bool): if True show debug output
+        '''
+        ageDiff=file.ageInDays - self.startAge
+        if prevFile is not None:
+            ageDiff=file.ageInDays - prevFile.ageInDays
+        if ageDiff<self.freq:
+            file.expire=True
+        else:
+            self.kept+=1        
+        if debug:
+            print(f"Δ {ageDiff}({ageDiff-self.freq}) days for {self.ruleName}({self.freq}) {self.kept}/{self.minAmount}{file}")
+        return self.kept>=self.minAmount
    
 class Expiration():
     '''
     Expiration pattern
     '''
-    def __init__(self,days:int=defaultDays,weeks:int=defaultWeeks,months:int=defaultMonths,years:int=defaultYears,minFileSize:int=defaultMinFileSize):
+    def __init__(self,days:int=defaultDays,weeks:int=defaultWeeks,months:int=defaultMonths,years:int=defaultYears,minFileSize:int=defaultMinFileSize,debug:bool=False):
         '''
         constructor
+        
+        Args:
+            days(float): how many files to keep for the daily backup
+            weeks(float): how many files to keep for the weekly backup
+            months(float): how many files to keep for the monthly backup
+            years(float):  how many files to keep for the yearly backup
+            debug(bool): if true show debug information (rule application)
         '''
         self.rules={
-            "days":ExpirationRule("days",1.0,days),
-            "weeks":ExpirationRule("weeks",7.0,weeks),
+            "dayly":ExpirationRule("days",1.0,days),
+            "weekly":ExpirationRule("weeks",7.0,weeks),
             # the month is in fact 4 weeks
-            "months":ExpirationRule("months",28,months),
+            "monthly":ExpirationRule("months",28.0,months),
             # the year is in fact 52 weeks or 13 of the 4 week months
-            "years": ExpirationRule("years",364,years)
+            "yearly": ExpirationRule("years",364.0,years)
         }      
         self.minFileSize=minFileSize
+        self.debug=debug
+    
+    def getNextRule(self,ruleIter,prevFile:BackupFile,verbose:bool)->ExpirationRule:
+        '''
+        get the next rule for the given ruleIterator
         
-    def applyRules(self,backupFiles:list):
+        Args:
+            ruleIter(Iter): Iterator over ExpirationRules
+            prevFile(BackupFile): the previousFile to take into account / reset/anchor the rule with
+            verbose(bool): if True show a message that the rule will be applied
+        Returns:
+            ExpirationRule: the next ExpirationRule 
+        '''
+        ruleKey=next(ruleIter)
+        rule=self.rules[ruleKey]
+        rule.ruleName=ruleKey
+        if verbose:
+            print(f"keeping {rule.minAmount} files for {rule.ruleName} backup")
+        rule.reset(prevFile)
+        return rule
+        
+    def applyRules(self,backupFiles:list,verbose:bool=True):
         '''
         apply my expiration rules to the given list of
         backup Files
         
         Args:
             backupFiles(list): the list of backupFiles to apply the rules to
+            verbose(debug): if true show what the rules are doing
         Returns:
             list: the sorted and marked list of backupFiles
         '''
         filesByAge=sorted(backupFiles, key=lambda backupFile: backupFile.getAgeInDays())
+        ruleIter=iter(self.rules)
+        rule=self.getNextRule(ruleIter,None, verbose)
+        prevFile=None
         for file in filesByAge:
             if file.size<self.minFileSize:
                 file.expire=True
+            else:
+                ruleDone=rule.apply(file,prevFile,debug=self.debug)
+                if not file.expire:
+                    prevFile=file
+                if ruleDone:
+                    rule=self.getNextRule(ruleIter,prevFile,verbose)
         return filesByAge    
 
 class ExpireBackups(object):
@@ -263,28 +349,38 @@ class ExpireBackups(object):
                     backupFiles.append(backupFile)
         return backupFiles            
         
-    def doexpire(self,withDelete:bool=False,show:bool=True):
+    def doexpire(self,withDelete:bool=False,show=True,showLimit:int=None):
         '''
         expire the files in the given rootPath
         
         withDelete(bool): if True really delete the files
         show(bool): if True show the expiration plan
+        showLimit(int): if set limit the number of lines to display
         '''
         backupFiles=self.getBackupFiles()
         filesByAge=self.expiration.applyRules(backupFiles)
         total=0
+        keptTotal=0
+        kept=0
         if show:
             deletehint= "by deletion" if withDelete else "dry run" 
             print(f"expiring {len(filesByAge)} files {deletehint}")
         for i,backupFile in enumerate(filesByAge):
             total+=backupFile.size
             totalString=BackupFile.getSizeString(total)
-            marker="❌" if backupFile.expire else "✅"  
+            marker=backupFile.getMarker()
             line=f"#{i+1:4d}{marker}:{backupFile.ageInDays:6.1f} days({backupFile.sizeString}/{totalString})→{backupFile.filePath}"
-            if show:
+            showLine=show and showLimit is None or i<showLimit
+            if showLine:
                 print(line)
+            if not backupFile.expire:
+                kept+=1
+                keptTotal+=backupFile.size
             if withDelete and backupFile.expire:
                 backupFile.delete()
+        if show:
+            keptSizeString=BackupFile.getSizeString(keptTotal)
+            print(f"kept {kept} files {keptSizeString}")
         
 def main(argv=None): # IGNORE:C0111
     '''main program.'''
@@ -342,7 +438,7 @@ USAGE
             dryRun=True
             if args.force:
                 dryRun=False    
-            expiration=Expiration(days=args.days,months=args.months,weeks=args.weeks,years=args.years,minFileSize=args.minFileSize)
+            expiration=Expiration(days=args.days,months=args.months,weeks=args.weeks,years=args.years,minFileSize=args.minFileSize,debug=args.debug)
             eb=ExpireBackups(rootPath=args.rootPath,baseName=args.baseName,ext=args.ext,expiration=expiration,dryRun=dryRun,debug=args.debug)
             eb.doexpire(args.force)
         
