@@ -67,7 +67,7 @@ class TestExpireBackups(unittest.TestCase):
         #debug=True
         eb.expiration.debug=debug
         #show=True
-        showLimit=30
+        showLimit=38
         eb.doexpire(withDelete=True,showLimit=showLimit)                
     
     def testPatterns(self):

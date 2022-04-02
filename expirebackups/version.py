@@ -10,7 +10,7 @@ class Version(object):
     '''
     name="pyExpireBackups"
     description="Backup expiration based on rules (yearly,monthly,weekly,daily ...)"
-    version='0.0.1'
+    version='0.0.2'
     date = '2022-04-01'
     updated = '2022-04-02'
 

@@ -175,17 +175,21 @@ class ExpirationRule():
         apply me to the given file taking the previously kept File prevFile (which might be None) into account
         
         Args:
+        
             file(BackupFile): the file to apply this rule for
             prevFile(BackupFile): the previous file to potentially take into account
             debug(bool): if True show debug output
         '''
-        ageDiff=file.ageInDays - self.startAge
         if prevFile is not None:
             ageDiff=file.ageInDays - prevFile.ageInDays
-        if ageDiff<self.freq:
-            file.expire=True
+            keep=ageDiff>=self.freq
         else:
-            self.kept+=1        
+            ageDiff=file.ageInDays - self.startAge
+            keep=True
+        if keep:
+            self.kept+=1
+        else:
+            file.expire=True
         if debug:
             print(f"Δ {ageDiff}({ageDiff-self.freq}) days for {self.ruleName}({self.freq}) {self.kept}/{self.minAmount}{file}")
         return self.kept>=self.minAmount
