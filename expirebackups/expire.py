@@ -398,7 +398,7 @@ class ExpireBackups(object):
             totalString = BackupFile.getSizeString(total)
             marker = backupFile.getMarker()
             line = f"#{i+1:4d}{marker}:{backupFile.ageInDays:6.1f} days({backupFile.sizeString}/{totalString})→{backupFile.filePath}"
-            showLine = show and showLimit is None or i < showLimit
+            showLine = show and (showLimit is None or i < showLimit)
             if showLine:
                 print(line)
             if not backupFile.expire:

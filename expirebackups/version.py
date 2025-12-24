@@ -14,4 +14,4 @@ class Version(object):
     description = "Backup expiration based on rules (yearly,monthly,weekly,daily ...)"
     version = "0.1.0"
     date = "2022-04-01"
-    updated = "2025-10-16"
+    updated = "2025-12-24"
