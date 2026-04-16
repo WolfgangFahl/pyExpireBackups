@@ -25,7 +25,15 @@ class TestExpireBackups(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def doTestPattern(self, days: int, weeks: int, months: int, years: int, failMsg: str, expectedMatch: str):
+    def doTestPattern(
+        self,
+        days: int,
+        weeks: int,
+        months: int,
+        years: int,
+        failMsg: str,
+        expectedMatch: str,
+    ):
         """
         test the given pattern
         """
@@ -50,8 +58,23 @@ class TestExpireBackups(unittest.TestCase):
             print(path)
         for i, backupFile in enumerate(backupFiles):
             if debug:
-                print(f"{i+1:3d}:{backupFile.getAgeInDays():3d}:{testFile}")
+                print(f"{i + 1:3d}:{backupFile.getAgeInDays():3.1f}:{testFile}")
             backupFile.delete()
+
+    def testSubDayAge(self):
+        """
+        test that files less than 24h apart get distinct ages - fixes #11
+        """
+        from expirebackups.expire import BackupFile
+
+        ext = ".sdt"
+        f1 = ExpireBackups.createTestFile(0.5, ext=ext)
+        f2 = ExpireBackups.createTestFile(0.9, ext=ext)
+        bf1 = BackupFile(f1)
+        bf2 = BackupFile(f2)
+        self.assertNotEqual(round(bf1.ageInDays, 1), round(bf2.ageInDays, 1))
+        bf1.delete()
+        bf2.delete()
 
     def testExpireBackus(self):
         """
@@ -79,7 +102,12 @@ class TestExpireBackups(unittest.TestCase):
         """
         test different patterns for being valid
         """
-        patterns = [(-1, 0, 0, 0, "days"), (0, -1, 0, 0, "weeks"), (0, 0, -1, 0, "months"), (0, 0, 0, -1, "years")]
+        patterns = [
+            (-1, 0, 0, 0, "days"),
+            (0, -1, 0, 0, "weeks"),
+            (0, 0, -1, 0, "months"),
+            (0, 0, 0, -1, "years"),
+        ]
         for days, weeks, months, years, name in patterns:
             failMsg = f"pattern for {name} failed"
             expectedMatch = rf"^-1 {name} is invalid - {name} must be >=0$"

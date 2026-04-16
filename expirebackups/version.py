@@ -12,6 +12,6 @@ class Version(object):
 
     name = "pyExpireBackups"
     description = "Backup expiration based on rules (yearly,monthly,weekly,daily ...)"
-    version = "0.1.0"
+    version = "0.1.2"
     date = "2022-04-01"
-    updated = "2025-12-24"
+    updated = "2026-04-16"

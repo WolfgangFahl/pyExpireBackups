@@ -107,7 +107,9 @@ class BackupFile:
             datetime: the file modification time
         """
         stats = os.stat(self.filePath)
-        modified = datetime.datetime.fromtimestamp(stats.st_mtime, tz=datetime.timezone.utc)
+        modified = datetime.datetime.fromtimestamp(
+            stats.st_mtime, tz=datetime.timezone.utc
+        )
         size = stats.st_size
         return modified, size
 
@@ -120,7 +122,7 @@ class BackupFile:
         """
         now = datetime.datetime.now(tz=datetime.timezone.utc)
         age = now - self.modified
-        return age.days
+        return age.total_seconds() / 86400.0
 
     def getIsoDateOfModification(self):
         """
@@ -158,7 +160,9 @@ class ExpirationRule:
         self.freq = freq
         self.minAmount = minAmount
         if minAmount < 0:
-            raise Exception(f"{self.minAmount} {self.name} is invalid - {self.name} must be >=0")
+            raise Exception(
+                f"{self.minAmount} {self.name} is invalid - {self.name} must be >=0"
+            )
 
     def reset(self, prevFile: BackupFile):
         """
@@ -195,7 +199,7 @@ class ExpirationRule:
             file.expire = True
         if debug:
             print(
-                f"Δ {ageDiff}({ageDiff-self.freq}) days for {self.ruleName}({self.freq}) {self.kept}/{self.minAmount}{file}"
+                f"Δ {ageDiff}({ageDiff - self.freq}) days for {self.ruleName}({self.freq}) {self.kept}/{self.minAmount}{file}"
             )
         return self.kept >= self.minAmount
 
@@ -235,7 +239,9 @@ class Expiration:
         self.minFileSize = minFileSize
         self.debug = debug
 
-    def getNextRule(self, ruleIter, prevFile: BackupFile, verbose: bool) -> ExpirationRule:
+    def getNextRule(
+        self, ruleIter, prevFile: BackupFile, verbose: bool
+    ) -> ExpirationRule:
         """
         get the next rule for the given ruleIterator
 
@@ -265,7 +271,9 @@ class Expiration:
         Returns:
             list: the sorted and marked list of backupFiles
         """
-        filesByAge = sorted(backupFiles, key=lambda backupFile: backupFile.getAgeInDays())
+        filesByAge = sorted(
+            backupFiles, key=lambda backupFile: backupFile.getAgeInDays()
+        )
         ruleIter = iter(self.rules)
         rule = self.getNextRule(ruleIter, None, verbose)
         prevFile = None
@@ -333,14 +341,21 @@ class ExpireBackups(object):
         wantedTime = now - dayDelta
         timestamp = datetime.datetime.timestamp(wantedTime)
         prefix = "" if baseName is None else f"{baseName}-"
-        testFile = NamedTemporaryFile(prefix=f"{prefix}{ageInDays}daysOld-", suffix=ext, delete=False)
+        testFile = NamedTemporaryFile(
+            prefix=f"{prefix}{ageInDays}daysOld-", suffix=ext, delete=False
+        )
         with open(testFile.name, "a"):
             times = (timestamp, timestamp)  # access time and modification time
             os.utime(testFile.name, times)
         return testFile.name
 
     @classmethod
-    def createTestFiles(cls, numberOfTestfiles: int, baseName: str = "expireBackupTest", ext: str = ".tst"):
+    def createTestFiles(
+        cls,
+        numberOfTestfiles: int,
+        baseName: str = "expireBackupTest",
+        ext: str = ".tst",
+    ):
         """
         create the given number of tests files
 
@@ -355,7 +370,9 @@ class ExpireBackups(object):
         """
         backupFiles = []
         for ageInDays in range(1, numberOfTestfiles + 1):
-            testFile = ExpireBackups.createTestFile(ageInDays, baseName=baseName, ext=ext)
+            testFile = ExpireBackups.createTestFile(
+                ageInDays, baseName=baseName, ext=ext
+            )
             backupFiles.append(BackupFile(testFile))
         path = pathlib.Path(testFile).parent.resolve()
         return path, backupFiles
@@ -397,7 +414,7 @@ class ExpireBackups(object):
             total += backupFile.size
             totalString = BackupFile.getSizeString(total)
             marker = backupFile.getMarker()
-            line = f"#{i+1:4d}{marker}:{backupFile.ageInDays:6.1f} days({backupFile.sizeString}/{totalString})→{backupFile.filePath}"
+            line = f"#{i + 1:4d}{marker}:{backupFile.ageInDays:6.1f} days({backupFile.sizeString}/{totalString})→{backupFile.filePath}"
             showLine = show and (showLimit is None or i < showLimit)
             if showLine:
                 print(line)
@@ -420,7 +437,10 @@ def main(argv=None):  # IGNORE:C0111
     program_name = os.path.basename(sys.argv[0])
     program_version = "v%s" % __version__
     program_build_date = str(__updated__)
-    program_version_message = "%%(prog)s %s (%s)" % (program_version, program_build_date)
+    program_version_message = "%%(prog)s %s (%s)" % (
+        program_version,
+        program_build_date,
+    )
     program_shortdesc = Version.description
     user_name = "Wolfgang Fahl"
     program_license = """%s
@@ -443,8 +463,12 @@ USAGE
 
     try:
         # Setup argument parser
-        parser = ArgumentParser(description=program_license, formatter_class=RawDescriptionHelpFormatter)
-        parser.add_argument("-d", "--debug", dest="debug", action="store_true", help="show debug info")
+        parser = ArgumentParser(
+            description=program_license, formatter_class=RawDescriptionHelpFormatter
+        )
+        parser.add_argument(
+            "-d", "--debug", dest="debug", action="store_true", help="show debug info"
+        )
 
         # expiration schedule selection
         parser.add_argument(
@@ -480,8 +504,16 @@ USAGE
             help="minimum File size in bytes to filter for (default: %(default)s)",
         )
         parser.add_argument("--rootPath", default=".")
-        parser.add_argument("--baseName", default=None, help="the basename to filter for (default: %(default)s)")
-        parser.add_argument("--ext", default=None, help="the extension to filter for (default: %(default)s)")
+        parser.add_argument(
+            "--baseName",
+            default=None,
+            help="the basename to filter for (default: %(default)s)",
+        )
+        parser.add_argument(
+            "--ext",
+            default=None,
+            help="the extension to filter for (default: %(default)s)",
+        )
 
         parser.add_argument(
             "--createTestFiles",
@@ -491,12 +523,16 @@ USAGE
         )
 
         parser.add_argument("-f", "--force", action="store_true")
-        parser.add_argument("-V", "--version", action="version", version=program_version_message)
+        parser.add_argument(
+            "-V", "--version", action="version", version=program_version_message
+        )
 
         args = parser.parse_args(argv[1:])
         if args.createTestFiles:
             path, _backupFiles = ExpireBackups.createTestFiles(args.createTestFiles)
-            print(f"created {args.createTestFiles} test files with extension '.tst' in {path}")
+            print(
+                f"created {args.createTestFiles} test files with extension '.tst' in {path}"
+            )
             print(
                 f"Please try out \nexpireBackups --rootPath {path} --baseName expireBackup --ext .tst --minFileSize 0"
             )
