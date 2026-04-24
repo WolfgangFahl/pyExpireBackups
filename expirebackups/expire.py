@@ -43,9 +43,31 @@ class BackupFile:
         self.modified, self.size = self.getStats()
         self.sizeValue, self.unit, self.factor = BackupFile.getSize(self.size)
         self.sizeString = BackupFile.getSizeString(self.size)
-        self.ageInDays = self.getAgeInDays()
+        # anchor age against the current time by default; Expiration.applyRules
+        # will re-anchor all files in one scan against a shared reference.
+        self.setReference(datetime.datetime.now(tz=datetime.timezone.utc))
         self.isoDate = self.getIsoDateOfModification()
         self.expire = False
+
+    def setReference(self, now: datetime.datetime):
+        """
+        set the reference time against which this file's age is computed.
+
+        Both a fractional elapsed-time age (ageInDays) — used for display and
+        sorting — and an integer calendar-day age (calendarAgeInDays) — used
+        by the ExpirationRule comparisons — are derived from the same
+        reference. See issue #11: elapsed-time deltas are sensitive to cron
+        drift, so rule decisions use calendar-day differences which reflect
+        the user intent of "one backup per day". Assumes NTP-synced clocks
+        and that backup jobs do not straddle midnight UTC.
+
+        Args:
+            now(datetime.datetime): the shared reference "now" for this scan
+        """
+        self.reference = now
+        age = now - self.modified
+        self.ageInDays = age.total_seconds() / 86400.0
+        self.calendarAgeInDays = (now.date() - self.modified.date()).days
 
     def __str__(self):
         """
@@ -175,7 +197,8 @@ class ExpirationRule:
         if prevFile is None:
             self.startAge = 0
         else:
-            self.startAge = prevFile.ageInDays
+            # use calendar-day age so rule decisions are stable under cron drift (see #11)
+            self.startAge = prevFile.calendarAgeInDays
 
     def apply(self, file: BackupFile, prevFile: BackupFile, debug: bool) -> bool:
         """
@@ -187,11 +210,13 @@ class ExpirationRule:
             prevFile(BackupFile): the previous file to potentially take into account
             debug(bool): if True show debug output
         """
+        # rule comparisons use integer calendar-day differences (see #11);
+        # ageInDays (float) is kept for display and sort ordering only.
         if prevFile is not None:
-            ageDiff = file.ageInDays - prevFile.ageInDays
+            ageDiff = file.calendarAgeInDays - prevFile.calendarAgeInDays
             keep = ageDiff >= self.freq
         else:
-            ageDiff = file.ageInDays - self.startAge
+            ageDiff = file.calendarAgeInDays - self.startAge
             keep = True
         if keep:
             self.kept += 1
@@ -271,8 +296,13 @@ class Expiration:
         Returns:
             list: the sorted and marked list of backupFiles
         """
+        # anchor a single reference "now" across all files in this scan so
+        # ages are mutually consistent (see #11).
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        for bf in backupFiles:
+            bf.setReference(now)
         filesByAge = sorted(
-            backupFiles, key=lambda backupFile: backupFile.getAgeInDays()
+            backupFiles, key=lambda backupFile: backupFile.ageInDays
         )
         ruleIter = iter(self.rules)
         rule = self.getNextRule(ruleIter, None, verbose)

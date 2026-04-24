@@ -76,6 +76,35 @@ class TestExpireBackups(unittest.TestCase):
         bf1.delete()
         bf2.delete()
 
+    def testCronDriftRegression(self):
+        """
+        test that cron drift (backup slightly <24h apart) does not cause the
+        middle daily file to be expired - regression for #11 follow-up.
+
+        Scenario: today's backup ~0.02 days old, yesterday's ~0.99 days old
+        (cron fired a few minutes earlier than prior day), and an older
+        backup ~3.00 days old. With days=2 the oldest must go, both recent
+        files must be kept.
+        """
+        from expirebackups.expire import BackupFile
+
+        ext = ".cdr"
+        ages = [0.02, 0.99, 3.00]
+        paths = [ExpireBackups.createTestFile(a, ext=ext) for a in ages]
+        files = [BackupFile(p) for p in paths]
+        try:
+            expiration = Expiration(
+                days=2, weeks=0, months=0, years=0, minFileSize=0
+            )
+            result = expiration.applyRules(files, verbose=False)
+            byPath = {bf.filePath: bf for bf in result}
+            self.assertFalse(byPath[paths[0]].expire, "newest (0.02d) must be kept")
+            self.assertFalse(byPath[paths[1]].expire, "middle (0.99d) must be kept")
+            self.assertTrue(byPath[paths[2]].expire, "oldest (3.00d) must be expired")
+        finally:
+            for bf in files:
+                bf.delete()
+
     def testExpireBackus(self):
         """
         test expiration of backups

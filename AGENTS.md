@@ -18,7 +18,7 @@ CRITICAL: NEVER leak credentials, passwords, hashes, internal hostnames, IPs, or
 
 ## Project: pyExpireBackups
 Automated cleanup and expiration of backup files based on age and retention rules.
-- Version: 0.1.1
+- Version: 0.1.3
 - Python: >=3.10
 - License: Apache-2.0
 - Source: https://github.com/WolfgangFahl/pyExpireBackups
